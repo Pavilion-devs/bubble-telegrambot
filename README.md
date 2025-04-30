@@ -213,9 +213,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📞 Support
 
 If you encounter any issues or have questions:
-1. Check the [Issues](https://github.com/yourusername/bubble-telegrambot/issues) page
+1. Check the [Issues](https://github.com/Pavilion-devs/bubble-telegrambot/issues) page
 2. Create a new issue with detailed information
-3. Join our [Telegram Support Group](https://t.me/your_support_group) (if available)
-
----
-Made with ❤️ by [Your Name/Team] 
+3. Email me at (olaboyefavour52@gmail.com) (if available)
