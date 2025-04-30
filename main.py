@@ -7,6 +7,7 @@ from config import TELEGRAM_BOT_TOKEN, SUPPORTED_CHAINS, WELCOME_MESSAGE, HELP_M
 from utils.bubblemaps import BubblemapsAPI
 from utils.screenshot import ScreenshotGenerator
 from utils.token_metrics import TokenMetrics
+import telegram
 
 # Set up logging
 logging.basicConfig(
@@ -26,29 +27,107 @@ CHAIN_SELECTION = 2
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send welcome message when the command /start is issued."""
-    keyboard = [
-        [InlineKeyboardButton("🔍 Analyze Token", callback_data="start_analysis")],
-        [InlineKeyboardButton("❓ Help", callback_data="help")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    chains_list = ", ".join(SUPPORTED_CHAINS.keys())
-    await update.message.reply_text(
-        WELCOME_MESSAGE.format(chains=chains_list),
-        parse_mode='Markdown',
-        reply_markup=reply_markup
-    )
+    try:
+        keyboard = [
+            [InlineKeyboardButton("🔍 Analyze Token", callback_data="start_analysis")],
+            [InlineKeyboardButton("❓ Help", callback_data="help")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        chains_list = ", ".join(SUPPORTED_CHAINS.keys())
+        
+        # Add retry logic for network operations
+        max_retries = 3
+        retry_delay = 1  # seconds
+        
+        for attempt in range(max_retries):
+            try:
+                await update.message.reply_text(
+                    WELCOME_MESSAGE.format(chains=chains_list),
+                    parse_mode='Markdown',
+                    reply_markup=reply_markup
+                )
+                break
+            except telegram.error.NetworkError as e:
+                if attempt == max_retries - 1:  # Last attempt
+                    await update.message.reply_text(
+                        "😔 Network connection issue detected. Please try:\n\n"
+                        "1. Check your internet connection\n"
+                        "2. Wait a few moments and try again\n"
+                        "3. If the problem persists, try /start again\n\n"
+                        "Error details: Network connectivity issue"
+                    )
+                    logger.error(f"Network error in start command: {e}")
+                    return
+                await asyncio.sleep(retry_delay * (attempt + 1))
+            except telegram.error.TelegramError as e:
+                await update.message.reply_text(
+                    "😔 Sorry, I encountered an error. Please try again in a moment.\n"
+                    "If the problem persists, use /start to restart our conversation."
+                )
+                logger.error(f"Telegram error in start command: {e}")
+                return
+    except Exception as e:
+        logger.error(f"Unexpected error in start command: {e}")
+        try:
+            await update.message.reply_text(
+                "😔 Something went wrong. Please try:\n\n"
+                "1. Wait a few moments\n"
+                "2. Use /start to try again\n"
+                "3. If the problem continues, please try later"
+            )
+        except:
+            pass  # If we can't even send the error message, just log it
 
 async def start_token_analysis(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start the token analysis flow"""
-    query = update.callback_query
-    await query.answer()
-    
-    await query.edit_message_text(
-        "Please enter the token address you want to analyze:",
-        parse_mode='Markdown'
-    )
-    return ADDRESS_INPUT
+    try:
+        query = update.callback_query
+        max_retries = 3
+        retry_delay = 1  # seconds
+        
+        for attempt in range(max_retries):
+            try:
+                await query.answer()
+                await query.edit_message_text(
+                    "Please enter the token address you want to analyze:",
+                    parse_mode='Markdown'
+                )
+                break
+            except telegram.error.NetworkError as e:
+                if attempt == max_retries - 1:  # Last attempt
+                    await query.message.reply_text(
+                        "😔 Network connection issue detected. Please try:\n\n"
+                        "1. Check your internet connection\n"
+                        "2. Wait a few moments and click the button again\n"
+                        "3. If the problem persists, use /start to restart\n\n"
+                        "Error details: Network connectivity issue"
+                    )
+                    logger.error(f"Network error in start_token_analysis: {e}")
+                    return ConversationHandler.END
+                await asyncio.sleep(retry_delay * (attempt + 1))
+            except telegram.error.TelegramError as e:
+                await query.message.reply_text(
+                    "😔 Sorry, I encountered an error. Please try again in a moment.\n"
+                    "If the problem persists, use /start to restart our conversation."
+                )
+                logger.error(f"Telegram error in start_token_analysis: {e}")
+                return ConversationHandler.END
+                
+        return ADDRESS_INPUT
+        
+    except Exception as e:
+        logger.error(f"Unexpected error in start_token_analysis: {e}")
+        try:
+            await query.message.reply_text(
+                "😔 Something went wrong. Please try:\n\n"
+                "1. Wait a few moments\n"
+                "2. Use /start to try again\n"
+                "3. If the problem continues, please try later"
+            )
+        except:
+            pass  # If we can't even send the error message, just log it
+        return ConversationHandler.END
 
 async def handle_address_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle the token address input and show chain selection"""
@@ -242,15 +321,30 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send help message when the command /help is issued."""
-    await update.message.reply_text(HELP_MESSAGE, parse_mode='Markdown')
+    # Provide an inline Analyze Token button on the help message
+    keyboard = [
+        [InlineKeyboardButton("🔍 Analyze Token", callback_data="start_analysis")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text(
+        HELP_MESSAGE,
+        parse_mode='Markdown',
+        reply_markup=reply_markup
+    )
 
 async def help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle help button callback"""
     query = update.callback_query
     await query.answer()
+    # Provide an inline Analyze Token button on the help screen
+    keyboard = [
+        [InlineKeyboardButton("🔍 Analyze Token", callback_data="start_analysis")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(
         HELP_MESSAGE,
-        parse_mode='Markdown'
+        parse_mode='Markdown',
+        reply_markup=reply_markup
     )
 
 async def extract_token_chain(args):
@@ -277,9 +371,21 @@ async def extract_token_chain(args):
 
 async def analyze_token(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Analyze a token and send the results."""
+    # Normalize arguments: remove empty or whitespace-only args
+    clean_args = [arg for arg in context.args if arg and arg.strip()]
+    # If no meaningful arguments, start interactive analysis flow
+    if not clean_args:
+        keyboard = [[InlineKeyboardButton("🔍 Analyze Token", callback_data="start_analysis")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text(
+            "Please enter the token address you want to analyze:",
+            parse_mode='Markdown',
+            reply_markup=reply_markup
+        )
+        return ADDRESS_INPUT
     try:
         # Extract address and chain from arguments
-        address, chain = await extract_token_chain(context.args)
+        address, chain = await extract_token_chain(clean_args)
         
         if not address or not chain:
             await update.message.reply_text(
@@ -628,34 +734,86 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode='Markdown'
         )
 
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle errors globally"""
+    logger.error("Exception while handling an update:", exc_info=context.error)
+
+    try:
+        # Get the error message
+        error_msg = str(context.error)
+        
+        # Extract the chat id from the update object
+        if update and (
+            (isinstance(update, Update) and update.effective_chat) or 
+            (hasattr(update, 'callback_query') and update.callback_query.message.chat)
+        ):
+            chat = update.effective_chat if isinstance(update, Update) else update.callback_query.message.chat
+            
+            if isinstance(context.error, telegram.error.NetworkError):
+                await context.bot.send_message(
+                    chat_id=chat.id,
+                    text="😔 Network connection issue detected. Please try:\n\n"
+                         "1. Check your internet connection\n"
+                         "2. Wait a few moments and try again\n"
+                         "3. If the problem persists, use /start to restart\n\n"
+                         "Error details: Network connectivity issue"
+                )
+            elif isinstance(context.error, telegram.error.TelegramError):
+                await context.bot.send_message(
+                    chat_id=chat.id,
+                    text="😔 Sorry, I encountered a Telegram API error. Please try again in a moment.\n"
+                         "If the problem persists, use /start to restart our conversation."
+                )
+            else:
+                await context.bot.send_message(
+                    chat_id=chat.id,
+                    text="😔 An unexpected error occurred. Please try:\n\n"
+                         "1. Wait a few moments\n"
+                         "2. Use /start to try again\n"
+                         "3. If the problem continues, please try later"
+                )
+    except:
+        logger.error("Error in error handler", exc_info=True)
+
 def main():
     """Start the bot."""
     # Create the Application
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
+    # Set up error handler
+    application.add_error_handler(error_handler)
+
     # Create conversation handler
     conv_handler = ConversationHandler(
         entry_points=[
             CallbackQueryHandler(start_token_analysis, pattern="^start_analysis$"),
-            CallbackQueryHandler(help_callback, pattern="^help$")
+            CallbackQueryHandler(help_callback, pattern="^help$"),
+            CommandHandler("start", start),
+            CommandHandler("help", help_command),
+            CommandHandler("analyze", analyze_token)
         ],
         states={
-            ADDRESS_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_address_input)],
-            CHAIN_SELECTION: [CallbackQueryHandler(handle_chain_selection, pattern="^chain_")],
+            ADDRESS_INPUT: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_address_input),
+                CallbackQueryHandler(start_token_analysis, pattern="^start_analysis$")  # Allow analyze button during address input
+            ],
+            CHAIN_SELECTION: [
+                CallbackQueryHandler(handle_chain_selection, pattern="^chain_"),
+                CallbackQueryHandler(start_token_analysis, pattern="^start_analysis$")  # Allow analyze button during chain selection
+            ],
         },
         fallbacks=[
             CommandHandler("cancel", cancel),
-            CallbackQueryHandler(help_callback, pattern="^help$")
+            CallbackQueryHandler(help_callback, pattern="^help$"),
+            CallbackQueryHandler(start_token_analysis, pattern="^start_analysis$")  # Allow analyze button in fallbacks
         ],
-        per_message=False
+        per_message=False,
+        name="token_analysis"
     )
 
     # Add handlers
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("analyze", analyze_token))
     application.add_handler(conv_handler)
-    application.add_handler(CallbackQueryHandler(button_callback))
+    application.add_handler(CallbackQueryHandler(button_callback))  # Handle other button callbacks
 
     # Start the Bot
     application.run_polling(allowed_updates=Update.ALL_TYPES)
