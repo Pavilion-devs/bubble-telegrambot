@@ -65,7 +65,7 @@ cancel - Cancel the current operation
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/bubble-telegrambot.git
+   git clone https://github.com/Pavilion-devs/bubble-telegrambot.git
    cd bubble-telegrambot
    ```
 
