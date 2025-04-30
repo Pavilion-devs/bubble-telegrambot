@@ -53,12 +53,13 @@ SCREENSHOT_TIMEOUT = 60000  # 60 seconds
 WELCOME_MESSAGE = """
 👋 Welcome to the Bubblemaps Token Analysis Bot!
 
-I can help you analyze any token across multiple chains. Here's how to use me:
+I can help you analyze any token across multiple chains. To get started:
 
-1. Use /analyze <address> on <chain>
-   Example: /analyze 0xABC123 on ETH
+1. Click the "🔍 Analyze Token" button below
+2. Enter your token address when prompted
+3. Select the blockchain network from the list
 
-2. I'll provide you with:
+I'll provide you with:
    - 📊 Token metrics (price, market cap, volume)
    - 🎯 Decentralization score
    - 🧠 Holder analysis
@@ -66,7 +67,10 @@ I can help you analyze any token across multiple chains. Here's how to use me:
 
 Supported chains: {chains}
 
-Need help? Use /help for more examples!
+You can also use the traditional command:
+/analyze <address> on <chain>
+
+Need help? Click the "❓ Help" button or use /help for examples!
 """
 
 HELP_MESSAGE = """
